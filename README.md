@@ -29,9 +29,9 @@ python scripts/deep_learning/lstm_fatigue_analysis.py
 ## Methods
 
 ### Classical Analysis
-- **Frequency Tracking**: Detects stiffness reduction via natural frequency shifts
-- **Damping Analysis**: Monitors crack-induced energy dissipation through peak broadening
-- **RMS Analysis**: Tracks overall vibration amplitude changes
+- **Resonance Frequency**: Detects stiffness reduction via natural frequency shifts
+- **Peak Width (Damping)**: Monitors crack-induced energy dissipation through peak broadening
+- **RMS Energy vs. Time**: Tracks overall vibration amplitude and energy changes over time
 
 ### Deep Learning
 - **LSTM/GRU Models**: Learn baseline "healthy" vibration patterns
