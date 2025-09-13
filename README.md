@@ -10,17 +10,6 @@ The core principle is that as a material fatigues—developing microscopic crack
 
 ---
 
-## Experimental Setup
-
-The experiment is designed to induce and monitor fatigue in a cantilever metal rod under controlled conditions.
-
-* **Cantilever Rod:** The metal specimen under test, securely clamped at one end to a wooden base, creating the cantilever configuration.
-* **Vibration Source:** A small DC motor is directly coupled to the rod, inducing continuous, forced vibrations to accelerate the fatigue process.
-* **Sensor:** An **MPU9250 Inertial Measurement Unit (IMU)** is securely taped to the cantilever rod, near its free end, to capture high-frequency acceleration data along the x, y, and z axes (`ax`, `ay`, `az`).
-* **Data Acquisition:** An **Arduino Uno microcontroller** interfaces with the MPU9250 via I2C, reads the raw sensor data, and is typically configured to stream this data serially for logging into a `.csv` file (e.g., `calibrated_mpu9250_data.csv`).
-
----
-
 ## Methodologies Explored
 
 This repository is organized into two primary analytical approaches, located in the `/scripts` directory:
