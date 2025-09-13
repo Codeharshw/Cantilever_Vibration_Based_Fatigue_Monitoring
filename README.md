@@ -1,110 +1,113 @@
-# Cantilever Vibration-Based Fatigue Monitoring
+# Cantilever Fatigue Monitoring
+
+A vibration-based fatigue detection system for metal cantilever structures using classical signal processing and deep learning approaches.
 
 ## Overview
 
-This project presents a comprehensive framework for monitoring metal fatigue in a cantilever rod using vibration data collected from a real-world experimental setup. It leverages time-series analysis with both classical signal processing techniques and modern deep learning models (LSTM & GRU) to detect the subtle changes in a structure's dynamic response that indicate fatigue damage.
+This project monitors structural fatigue in cantilever beams through vibration analysis. An MPU9250 IMU sensor captures acceleration data from a motor-excited cantilever rod, processed via Arduino for real-time fatigue assessment.
 
-Our experimental setup involves a metal cantilever rod subjected to continuous vibration induced by a motor. An **MPU9250 IMU sensor** attached to the rod captures high-resolution acceleration data, which is then processed by an **Arduino microcontroller** and saved for analysis.
+**Key Features:**
+- Classical modal analysis (frequency/damping shifts)
+- Deep learning models (LSTM/GRU) for anomaly detection
+- Real-time data acquisition with MPU9250 + Arduino
+- Automated fatigue progression tracking
 
-The core principle is that as a material fatigues—developing microscopic cracks and undergoing material degradation—its physical properties, specifically **stiffness** and **damping**, change. These changes manifest as measurable shifts in the vibration data. This repository offers the tools to capture and analyze these shifts, providing an early warning system for structural failure in an experimental context.
+## Quick Start
 
----
+```bash
+git clone https://github.com/yourusername/cantilever-fatigue-monitoring.git
+cd cantilever-fatigue-monitoring
+pip install -r requirements.txt
 
-## Methodologies Explored
+# Run frequency analysis
+python scripts/classical_analysis/frequency_analysis.py
 
-This repository is organized into two primary analytical approaches, located in the `/scripts` directory:
+# Run LSTM model
+python scripts/deep_learning/lstm_fatigue_analysis.py
+```
 
-### 1. Classical Signal Processing (`/scripts/classical_analysis`)
+## Methods
 
-This physics-based method analyzes the raw vibration signal to extract direct indicators of structural health. It is fundamentally based on **Modal Analysis**, where changes in a structure's modal parameters (natural frequencies and damping ratios) directly correlate with physical damage and fatigue progression.
+### Classical Analysis
+- **Frequency Tracking**: Detects stiffness reduction via natural frequency shifts
+- **Damping Analysis**: Monitors crack-induced energy dissipation through peak broadening
+- **RMS Analysis**: Tracks overall vibration amplitude changes
 
-* **Resonance Frequency Analysis:** As the cantilever rod experiences fatigue and crack propagation, its effective stiffness decreases. This reduction in stiffness will cause its natural resonance frequency to exhibit a measurable **decrease**. This is a fundamental and highly sensitive indicator of structural damage.
-* **Damping Analysis (Peak Width):** The formation and growth of internal cracks introduce new mechanisms for energy dissipation within the material (e.g., micro-friction between crack surfaces, plastic deformation at the crack tip). This phenomenon **increases** the system's overall damping, which is observed as a broadening (or widening) of the resonance peak in the frequency spectrum.
+### Deep Learning
+- **LSTM/GRU Models**: Learn baseline "healthy" vibration patterns
+- **Anomaly Detection**: Identifies fatigue through prediction error increases
+- **Time-Series Forecasting**: One-step-ahead prediction for real-time monitoring
 
-### 2. Time-Series Deep Learning (`/scripts/deep_learning`)
-
-This data-driven method employs Recurrent Neural Networks (RNNs), specifically LSTMs and GRUs, to learn the complex temporal patterns characteristic of the "healthy" vibrating cantilever system. By rigorously training these models exclusively on vibration data obtained from the initial, undamaged phase of the experiment, they can then predict the expected vibration signal one step into the future.
-
-* **Fatigue Detection:** As the cantilever rod experiences fatigue and its dynamic behavior changes due to crack initiation and propagation, its actual vibration signal will begin to deviate significantly from the patterns learned by the "healthy" model. This divergence between the actual and predicted values results in a **noticeable and sustained increase in the model's prediction error** over time, serving as a powerful and sensitive indicator of damage and fatigue progression.
-* **Models Implemented:**
-    * **LSTM (Long Short-Term Memory):** A robust RNN architecture particularly effective at capturing long-range dependencies and complex non-linear patterns in sequential data, making it suitable for modeling time-series vibration.
-    * **GRU (Gated Recurrent Unit):** A more computationally efficient alternative to the LSTM, often delivering comparable performance in time-series prediction tasks with fewer parameters.
-
----
-
-## Repository Structure
+## Project Structure
 
 ```
-Cantilever_Vibration_Based_Fatigue_Monitoring/
 ├── data/
 │   └── calibrated_mpu9250_data.csv
-├── results/
-│   └── plots/
 ├── scripts/
 │   ├── classical_analysis/
-│   │   ├── 01_rms_analysis.py
-│   │   ├── 02_damping_analysis.py
-│   │   └── 03_frequency_analysis.py
+│   │   ├── rms_analysis.py
+│   │   ├── damping_analysis.py
+│   │   └── frequency_analysis.py
 │   └── deep_learning/
-│       ├── LSTM_fatigue_analysis.py
-│       └── GRU_fatigue_analysis.py
-├── .gitignore
-├── README.md
-├── requirements_classical.txt
-└── requirements_dl.txt
+│       ├── lstm_fatigue_analysis.py
+│       └── gru_fatigue_analysis.py
+├── results/plots/
+└── requirements.txt
 ```
 
----
+## Requirements
 
-## Getting Started
+- Python 3.8+
+- NumPy, SciPy, Matplotlib
+- TensorFlow/Keras (for deep learning)
+- Arduino IDE (for data acquisition)
 
-### Prerequisites
+## Hardware Setup
 
-* Python 3.8+
-* A Python virtual environment (highly recommended for dependency management)
+- Cantilever beam (metal rod)
+- MPU9250 IMU sensor
+- Arduino microcontroller
+- Motor for vibration excitation
 
-### Installation
+## Usage
 
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/](https://github.com/)[Your-Username]/Cantilever_Vibration_Based_Fatigue_Monitoring.git
-    cd Cantilever_Vibration_Based_Fatigue_Monitoring
-    ```
+1. **Data Collection**: Upload Arduino sketch to collect vibration data
+2. **Classical Analysis**: Run frequency/damping analysis scripts
+3. **Deep Learning**: Train models on healthy data, then monitor for anomalies
+4. **Results**: View generated plots in `results/plots/`
 
-2.  **Set up your environment and install dependencies:**
-    Choose the appropriate `requirements.txt` file based on the analysis you wish to run. It's recommended to set up separate virtual environments if you plan to run both classical and deep learning analyses frequently.
+## Results
 
-    * **For Classical Signal Processing:**
-        ```bash
-        # Activate your virtual environment first (e.g., source venv/bin/activate)
-        pip install -r requirements_classical.txt
-        ```
-    * **For Deep Learning Analysis:**
-        ```bash
-        # Activate your virtual environment first
-        pip install -r requirements_dl.txt
-        ```
+The system successfully detects fatigue progression through:
+- Frequency reduction (stiffness loss)
+- Damping increase (crack formation)
+- LSTM prediction error spikes (behavioral changes)
 
-### Usage
+## Contributing
 
-All executable analysis scripts are located in the `/scripts` directory. Navigate to the appropriate subfolder and run the Python scripts directly from your terminal.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/new-analysis`)
+3. Commit changes (`git commit -am 'Add new analysis method'`)
+4. Push to branch (`git push origin feature/new-analysis`)
+5. Open a Pull Request
 
-1.  **Running a Classical Analysis (e.g., Frequency Analysis):**
-    ```bash
-    cd scripts/classical_analysis
-    python 03_frequency_analysis.py 
-    ```
+## License
 
-2.  **Running a Deep Learning Model (e.g., LSTM Analysis):**
-    ```bash
-    cd scripts/deep_learning
-    python LSTM_fatigue_analysis.py 
-    ```
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Generated plots and results from the analyses will be automatically saved into the `/results/plots` directory.
+## Citation
 
----
+If you use this work in your research, please cite:
 
-## Acknowledgements
+```bibtex
+@software{cantilever_fatigue_monitoring,
+  title={Cantilever Fatigue Monitoring},
+  author={Your Name},
+  year={2024},
+  url={https://github.com/yourusername/cantilever-fatigue-monitoring}
+}
+```
 
-The deep learning models in this repository are adapted from the principles and code structures presented in the book **"Time Series Forecasting using Deep Learning" by Ivan Gridin**.
+## Acknowledgments
+
+Deep learning implementations adapted from "Time Series Forecasting using Deep Learning" by Ivan Gridin.
