@@ -7,7 +7,7 @@ A vibration-based fatigue detection system for metal cantilever structures using
 This project monitors structural fatigue in cantilever beams through vibration analysis. An MPU9250 IMU sensor captures acceleration data from a motor-excited cantilever rod, processed via Arduino for real-time fatigue assessment.
 
 **Key Features:**
-- Classical modal analysis (frequency/damping shifts)
+- Classical modal analysis (frequency/damping/RMS shifts)
 - Deep learning models (LSTM/GRU) for anomaly detection
 - Real-time data acquisition with MPU9250 + Arduino
 - Automated fatigue progression tracking
