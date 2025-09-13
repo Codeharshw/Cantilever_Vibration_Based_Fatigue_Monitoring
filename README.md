@@ -2,12 +2,22 @@
 
 ## Overview
 
-This project provides a comprehensive framework for monitoring metal fatigue in a cantilever rod using vibration data. It leverages time-series analysis with both classical signal processing techniques and modern deep learning models (LSTM & GRU) to detect the subtle changes in a structure's dynamic response that indicate fatigue damage.
+This project presents a comprehensive framework for monitoring metal fatigue in a cantilever rod using vibration data collected from a real-world experimental setup. It leverages time-series analysis with both classical signal processing techniques and modern deep learning models (LSTM & GRU) to detect the subtle changes in a structure's dynamic response that indicate fatigue damage.
 
-The core principle is that as a material fatigues, its physical properties—specifically **stiffness** and **damping**—change. These changes manifest as measurable shifts in the vibration data. This repository offers the tools to capture and analyze these shifts, providing an early warning system for structural failure.
+Our experimental setup involves a metal cantilever rod subjected to continuous vibration induced by a motor. An **MPU9250 IMU sensor** attached to the rod captures high-resolution acceleration data, which is then processed by an **Arduino microcontroller** and saved for analysis.
 
-![Vibration Analysis Concept](https://i.imgur.com/rS2B911.png)
-*(Conceptual diagram showing how vibration data is used for health monitoring)*
+The core principle is that as a material fatigues—developing microscopic cracks and undergoing material degradation—its physical properties, specifically **stiffness** and **damping**, change. These changes manifest as measurable shifts in the vibration data. This repository offers the tools to capture and analyze these shifts, providing an early warning system for structural failure in an experimental context.
+
+---
+
+## Experimental Setup
+
+The experiment is designed to induce and monitor fatigue in a cantilever metal rod under controlled conditions.
+
+* **Cantilever Rod:** The metal specimen under test, securely clamped at one end to a wooden base, creating the cantilever configuration.
+* **Vibration Source:** A small DC motor is directly coupled to the rod, inducing continuous, forced vibrations to accelerate the fatigue process.
+* **Sensor:** An **MPU9250 Inertial Measurement Unit (IMU)** is securely taped to the cantilever rod, near its free end, to capture high-frequency acceleration data along the x, y, and z axes (`ax`, `ay`, `az`).
+* **Data Acquisition:** An **Arduino Uno microcontroller** interfaces with the MPU9250 via I2C, reads the raw sensor data, and is typically configured to stream this data serially for logging into a `.csv` file (e.g., `calibrated_mpu9250_data.csv`).
 
 ---
 
@@ -17,19 +27,19 @@ This repository is organized into two primary analytical approaches, located in 
 
 ### 1. Classical Signal Processing (`/scripts/classical_analysis`)
 
-This physics-based method analyzes the vibration signal to extract direct indicators of structural health. It is based on **Modal Analysis**, where changes in the modal parameters (frequency and damping) correlate directly with physical damage.
+This physics-based method analyzes the raw vibration signal to extract direct indicators of structural health. It is fundamentally based on **Modal Analysis**, where changes in a structure's modal parameters (natural frequencies and damping ratios) directly correlate with physical damage and fatigue progression.
 
-* **Resonance Frequency Analysis:** Fatigue cracks reduce the rod's stiffness, causing a **decrease** in its natural resonance frequency.
-* **Damping Analysis (Peak Width):** Cracks introduce energy dissipation mechanisms (e.g., friction), which **increases** the system's damping. This is observed as a widening of the resonance peak in the frequency spectrum.
+* **Resonance Frequency Analysis:** As the cantilever rod experiences fatigue and crack propagation, its effective stiffness decreases. This reduction in stiffness will cause its natural resonance frequency to exhibit a measurable **decrease**. This is a fundamental and highly sensitive indicator of structural damage.
+* **Damping Analysis (Peak Width):** The formation and growth of internal cracks introduce new mechanisms for energy dissipation within the material (e.g., micro-friction between crack surfaces, plastic deformation at the crack tip). This phenomenon **increases** the system's overall damping, which is observed as a broadening (or widening) of the resonance peak in the frequency spectrum.
 
 ### 2. Time-Series Deep Learning (`/scripts/deep_learning`)
 
-This data-driven method uses Recurrent Neural Networks (RNNs) to learn the complex temporal patterns of a "healthy" vibrating system. By training on the initial, undamaged phase of the experiment, the models can predict the expected vibration signal one step into the future.
+This data-driven method employs Recurrent Neural Networks (RNNs), specifically LSTMs and GRUs, to learn the complex temporal patterns characteristic of the "healthy" vibrating cantilever system. By rigorously training these models exclusively on vibration data obtained from the initial, undamaged phase of the experiment, they can then predict the expected vibration signal one step into the future.
 
-* **Fatigue Detection:** As fatigue develops, the rod's behavior diverges from the learned "healthy" patterns. This causes the model's **prediction error to increase significantly**, serving as a powerful and sensitive indicator of damage.
+* **Fatigue Detection:** As the cantilever rod experiences fatigue and its dynamic behavior changes due to crack initiation and propagation, its actual vibration signal will begin to deviate significantly from the patterns learned by the "healthy" model. This divergence between the actual and predicted values results in a **noticeable and sustained increase in the model's prediction error** over time, serving as a powerful and sensitive indicator of damage and fatigue progression.
 * **Models Implemented:**
-    * **LSTM (Long Short-Term Memory):** A sophisticated RNN architecture capable of learning long-range dependencies in the data.
-    * **GRU (Gated Recurrent Unit):** A more streamlined version of the LSTM, often delivering similar performance with greater computational efficiency.
+    * **LSTM (Long Short-Term Memory):** A robust RNN architecture particularly effective at capturing long-range dependencies and complex non-linear patterns in sequential data, making it suitable for modeling time-series vibration.
+    * **GRU (Gated Recurrent Unit):** A more computationally efficient alternative to the LSTM, often delivering comparable performance in time-series prediction tasks with fewer parameters.
 
 ---
 
@@ -38,13 +48,14 @@ This data-driven method uses Recurrent Neural Networks (RNNs) to learn the compl
 ```
 Cantilever_Vibration_Based_Fatigue_Monitoring/
 ├── data/
-│   └── calibrated_mpu9_data.csv
+│   └── calibrated_mpu9250_data.csv
 ├── results/
 │   └── plots/
 ├── scripts/
 │   ├── classical_analysis/
 │   │   ├── 01_rms_analysis.py
-│   │   ├── ...
+│   │   ├── 02_damping_analysis.py
+│   │   └── 03_frequency_analysis.py
 │   └── deep_learning/
 │       ├── LSTM_fatigue_analysis.py
 │       └── GRU_fatigue_analysis.py
@@ -61,7 +72,7 @@ Cantilever_Vibration_Based_Fatigue_Monitoring/
 ### Prerequisites
 
 * Python 3.8+
-* A Python virtual environment (recommended)
+* A Python virtual environment (highly recommended for dependency management)
 
 ### Installation
 
@@ -72,44 +83,36 @@ Cantilever_Vibration_Based_Fatigue_Monitoring/
     ```
 
 2.  **Set up your environment and install dependencies:**
-    Choose the appropriate requirements file based on the analysis you wish to run.
+    Choose the appropriate `requirements.txt` file based on the analysis you wish to run. It's recommended to set up separate virtual environments if you plan to run both classical and deep learning analyses frequently.
 
     * **For Classical Signal Processing:**
         ```bash
+        # Activate your virtual environment first (e.g., source venv/bin/activate)
         pip install -r requirements_classical.txt
         ```
     * **For Deep Learning Analysis:**
         ```bash
+        # Activate your virtual environment first
         pip install -r requirements_dl.txt
         ```
 
 ### Usage
 
-All executable scripts are located in the `/scripts` directory. Navigate to the appropriate subfolder and run the Python scripts directly.
+All executable analysis scripts are located in the `/scripts` directory. Navigate to the appropriate subfolder and run the Python scripts directly from your terminal.
 
-1.  **Running a Classical Analysis:**
+1.  **Running a Classical Analysis (e.g., Frequency Analysis):**
     ```bash
     cd scripts/classical_analysis
-    python 01_frequency_analysis.py
+    python 03_frequency_analysis.py 
     ```
 
-2.  **Running a Deep Learning Model:**
+2.  **Running a Deep Learning Model (e.g., LSTM Analysis):**
     ```bash
     cd scripts/deep_learning
-    python LSTM_fatigue_analysis.py
+    python LSTM_fatigue_analysis.py 
     ```
 
-Generated plots and results will be saved in the `/results/plots` directory.
-
----
-
-## Example Result: Fatigue Detection using LSTM
-
-The plot below shows a key result from the LSTM model. The model, trained only on "healthy" data, shows a low prediction error initially. As fatigue damage accumulates in the test set, the actual vibration deviates from the model's predictions, causing a noticeable and sustained increase in the error—a clear sign of structural change.
-
-
-
-This rising error trend is the primary indicator of fatigue progression when using the deep learning approach.
+Generated plots and results from the analyses will be automatically saved into the `/results/plots` directory.
 
 ---
 
