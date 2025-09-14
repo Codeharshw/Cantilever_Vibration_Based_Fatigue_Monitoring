@@ -1,7 +1,7 @@
 # GRU Vibration Analysis for Cantilever Rod Experiment
 # This script is an adaptation of the code from Chapter 4 of the book
 # "Time Series Forecasting using Deep Learning" by Ivan Gridin.
-# It is specifically tailored to analyze the 'calibrated_mpu9250_data.csv' file for fatigue detection.
+# It is specifically tailored to analyze the 'calibrated_mpu9250_data.csv' file for ftigue detection.
 
 # --- Part 1: Imports ---
 # Standard libraries for data handling, math, and plotting
