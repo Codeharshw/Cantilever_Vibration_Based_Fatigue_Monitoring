@@ -59,7 +59,8 @@ python scripts/deep_learning/lstm_fatigue_analysis.py
 
 - Python 3.8+
 - NumPy, SciPy, Matplotlib
-- TensorFlow/Keras (for deep learning)
+- PyTorch (for deep learning)
+- scikit-learn (for data preprocessing)
 - Arduino IDE (for data acquisition)
 
 ## Hardware Setup
@@ -67,7 +68,7 @@ python scripts/deep_learning/lstm_fatigue_analysis.py
 - Cantilever beam (metal rod)
 - MPU9250 IMU sensor
 - Arduino microcontroller
-- Motor for vibration excitation
+- Motor/Actuator for vibration excitation
 
 ## Usage
 
