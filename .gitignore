@@ -1,0 +1,155 @@
+# Python Virtual Environments
+venv/
+env/
+.venv/
+.env
+ENV/
+env.bak/
+venv.bak/
+pyvenv.cfg
+
+# Python Cache and Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+.spyderproject
+.spyproject
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# PyTorch Model Files
+*.pth
+*.pt
+models/
+checkpoints/
+
+# Project-Specific: Results and Plots
+results/plots/*
+!results/plots/.gitkeep
+results/figures/
+results/outputs/
+
+# Generated Image Files
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.svg
+
+# Log Files
+*.log
+logs/
+*.out
+
+# Configuration Files with Secrets
+config.ini
+.env.local
+.env.production
+secrets.yaml
+credentials.json
+
+# Data Files (uncomment if you want to exclude large datasets)
+# data/raw/
+# data/processed/
+# *.csv
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation
+docs/_build/
+site/
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# Profiling
+*.prof
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Packaging
+*.manifest
+*.spec
+
+# Translations
+*.mo
+*.pot
+
+# Flask
+instance/
+.webassets-cache
+
+# Scrapy
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# Pyre type checker
+.pyre/
