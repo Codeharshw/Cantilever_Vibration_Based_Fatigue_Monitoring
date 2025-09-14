@@ -1,0 +1,331 @@
+"""
+LSTM-based Vibration Analysis for Cantilever Rod Fatigue Detection
+
+This module implements a Long Short-Term Memory (LSTM) neural network for analyzing
+vibration data from MPU9250 sensor to detect structural fatigue in cantilever rods.
+The model leverages LSTM's ability to capture long-term dependencies in vibration
+patterns, using prediction error as a fatigue indicator.
+
+Based on concepts from "Time Series Forecasting using Deep Learning" by Ivan Gridin.
+"""
+
+import copy
+import sys
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+from torch import optim
+from sklearn.preprocessing import MinMaxScaler
+
+
+class LSTM(nn.Module):
+    """
+    LSTM-based time series prediction model for vibration analysis.
+    
+    The LSTM architecture is particularly suited for vibration analysis as it can
+    maintain both short-term (hidden state) and long-term (cell state) memory,
+    enabling detection of subtle changes in vibration patterns over time.
+    
+    Args:
+        hidden_size (int): Size of LSTM hidden and cell states
+        in_size (int): Input feature dimension (default: 1)
+        out_size (int): Output dimension (default: 1)
+    """
+    
+    def __init__(self, hidden_size, in_size=1, out_size=1):
+        super(LSTM, self).__init__()
+        self.lstm = nn.LSTM(
+            input_size=in_size,
+            hidden_size=hidden_size,
+            batch_first=True
+        )
+        self.fc = nn.Linear(hidden_size, out_size)
+
+    def forward(self, x, h=None):
+        """
+        Forward pass through the LSTM network.
+        
+        Args:
+            x (torch.Tensor): Input sequence [batch_size, seq_len, input_size]
+            h (tuple, optional): Initial (hidden_state, cell_state)
+            
+        Returns:
+            tuple: (prediction, (final_hidden_state, final_cell_state))
+        """
+        lstm_out, h_out = self.lstm(x, h)
+        last_hidden = lstm_out[:, -1, :]
+        prediction = self.fc(last_hidden)
+        return prediction, h_out
+
+
+def sliding_window(data, window_size):
+    """
+    Create input-output pairs using sliding window approach.
+    
+    Transforms time series data into supervised learning format by creating
+    sequences of length window_size as inputs and the next value as target.
+    
+    Args:
+        data (np.array): Time series data
+        window_size (int): Length of input sequence
+        
+    Returns:
+        tuple: (X, y) where X is input sequences and y is target values
+    """
+    X, y = [], []
+    for i in range(len(data) - window_size):
+        X.append(data[i:i + window_size])
+        y.append(data[i + window_size])
+    return np.array(X), np.array(y)
+
+
+def calculate_metrics(y_true, y_pred):
+    """
+    Calculate standard regression metrics.
+    
+    Args:
+        y_true (np.array): True values
+        y_pred (np.array): Predicted values
+        
+    Returns:
+        dict: Dictionary containing MSE, RMSE, MAE, and MAPE
+    """
+    mse = np.mean((y_true - y_pred) ** 2)
+    rmse = np.sqrt(mse)
+    mae = np.mean(np.abs(y_true - y_pred))
+    mape = np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
+    
+    return {
+        'MSE': mse,
+        'RMSE': rmse,
+        'MAE': mae,
+        'MAPE': mape
+    }
+
+
+def plot_results(train_losses, val_losses, y_true, y_pred, prediction_error):
+    """
+    Generate comprehensive visualization of results.
+    
+    Args:
+        train_losses (list): Training loss history
+        val_losses (list): Validation loss history
+        y_true (np.array): True values for test set
+        y_pred (np.array): Predicted values for test set
+        prediction_error (np.array): Absolute prediction errors
+    """
+    fig = plt.figure(figsize=(15, 10))
+    
+    # Training history
+    plt.subplot(2, 2, 1)
+    plt.plot(train_losses, label='Training Loss', alpha=0.8, linewidth=1.5)
+    plt.plot(val_losses, label='Validation Loss', alpha=0.8, linewidth=1.5)
+    plt.title('LSTM Training History', fontsize=12, fontweight='bold')
+    plt.xlabel('Epoch')
+    plt.ylabel('MSE Loss')
+    plt.yscale('log')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Prediction comparison (sample)
+    plt.subplot(2, 2, 2)
+    sample_size = min(500, len(y_true))
+    indices = range(sample_size)
+    plt.plot(indices, y_true[:sample_size], label='Actual', alpha=0.8, linewidth=1)
+    plt.plot(indices, y_pred[:sample_size], label='Predicted', alpha=0.8, linewidth=1)
+    plt.title('Vibration Prediction Comparison', fontsize=12, fontweight='bold')
+    plt.xlabel('Time Step')
+    plt.ylabel('Acceleration')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Prediction error distribution
+    plt.subplot(2, 2, 3)
+    plt.hist(prediction_error.flatten(), bins=50, alpha=0.7, color='red', edgecolor='black')
+    plt.title('Prediction Error Distribution', fontsize=12, fontweight='bold')
+    plt.xlabel('Absolute Error')
+    plt.ylabel('Frequency')
+    plt.grid(True, alpha=0.3)
+    
+    # Fatigue indicator over time
+    plt.subplot(2, 2, 4)
+    plt.plot(prediction_error, color='red', alpha=0.7, linewidth=1)
+    plt.title('Fatigue Indicator Over Time', fontsize=12, fontweight='bold')
+    plt.xlabel('Time Step (Test Set)')
+    plt.ylabel('Absolute Prediction Error')
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def main():
+    """Main execution function for LSTM vibration analysis."""
+    
+    # Configuration parameters
+    WINDOW_SIZE = 64
+    HIDDEN_SIZE = 32
+    LEARNING_RATE = 0.001
+    EPOCHS = 50
+    TRAIN_RATIO = 0.70
+    VAL_RATIO = 0.15
+    DATA_FILE = 'calibrated_mpu9250_data.csv'
+
+    print("=== LSTM Vibration Analysis for Fatigue Detection ===\n")
+
+    # Data loading and preprocessing
+    print("[1/6] Loading and preprocessing data...")
+    try:
+        df = pd.read_csv(DATA_FILE)
+        if 'ax' not in df.columns:
+            raise ValueError("Column 'ax' not found in the dataset")
+        
+        time_series_data = df['ax'].values.reshape(-1, 1)
+        print(f"Loaded {len(time_series_data)} data points from '{DATA_FILE}'")
+        
+    except FileNotFoundError:
+        print(f"Error: '{DATA_FILE}' not found in current directory")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        sys.exit(1)
+
+    # Data normalization and sequence creation
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(time_series_data)
+    X, y = sliding_window(scaled_data, WINDOW_SIZE)
+    
+    print(f"Created {len(X)} sequences with window size {WINDOW_SIZE}")
+
+    # Data splitting
+    train_size = int(len(X) * TRAIN_RATIO)
+    val_size = int(len(X) * VAL_RATIO)
+    
+    # Split data chronologically (important for time series)
+    X_train, y_train = X[:train_size], y[:train_size]
+    X_val, y_val = X[train_size:train_size + val_size], y[train_size:train_size + val_size]
+    X_test, y_test = X[train_size + val_size:], y[train_size + val_size:]
+
+    # Convert to PyTorch tensors
+    tensors = {}
+    for name, data in [('X_train', X_train), ('y_train', y_train), 
+                      ('X_val', X_val), ('y_val', y_val),
+                      ('X_test', X_test), ('y_test', y_test)]:
+        tensors[name] = torch.tensor(data, dtype=torch.float32)
+    
+    print(f"Data split: Train={len(X_train)}, Val={len(X_val)}, Test={len(X_test)}")
+
+    # Model initialization
+    print(f"\n[2/6] Initializing LSTM model (hidden_size={HIDDEN_SIZE})...")
+    model = LSTM(hidden_size=HIDDEN_SIZE)
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    
+    # Count parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model parameters: {total_params} total, {trainable_params} trainable")
+
+    # Training loop with early stopping
+    print(f"\n[3/6] Training model for {EPOCHS} epochs...")
+    best_model_state = None
+    min_val_loss = float('inf')
+    train_losses, val_losses = [], []
+    patience = 10
+    patience_counter = 0
+
+    for epoch in range(EPOCHS):
+        # Training phase
+        model.train()
+        optimizer.zero_grad()
+        train_pred, _ = model(tensors['X_train'])
+        train_loss = criterion(train_pred, tensors['y_train'])
+        train_loss.backward()
+        
+        # Gradient clipping to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        optimizer.step()
+        
+        # Validation phase
+        model.eval()
+        with torch.no_grad():
+            val_pred, _ = model(tensors['X_val'])
+            val_loss = criterion(val_pred, tensors['y_val'])
+        
+        train_losses.append(train_loss.item())
+        val_losses.append(val_loss.item())
+
+        # Model checkpoint and early stopping
+        if val_loss.item() < min_val_loss:
+            min_val_loss = val_loss.item()
+            best_model_state = copy.deepcopy(model.state_dict())
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch {epoch+1:2d}/{EPOCHS}: Train Loss={train_loss.item():.6f}, "
+                  f"Val Loss={val_loss.item():.6f}")
+        
+        # Early stopping
+        if patience_counter >= patience:
+            print(f"Early stopping at epoch {epoch+1} (patience={patience})")
+            break
+
+    print(f"Training completed. Best validation loss: {min_val_loss:.6f}")
+
+    # Model evaluation
+    print("\n[4/6] Evaluating best model on test set...")
+    best_model = LSTM(hidden_size=HIDDEN_SIZE)
+    best_model.load_state_dict(best_model_state)
+    best_model.eval()
+
+    with torch.no_grad():
+        test_predictions, _ = best_model(tensors['X_test'])
+
+    # Denormalize predictions to original scale
+    y_test_orig = scaler.inverse_transform(tensors['y_test'].numpy())
+    test_pred_orig = scaler.inverse_transform(test_predictions.numpy())
+    
+    # Calculate metrics
+    print("\n[5/6] Computing metrics and fatigue indicators...")
+    metrics = calculate_metrics(y_test_orig, test_pred_orig)
+    prediction_error = np.abs(y_test_orig - test_pred_orig)
+    
+    # Statistical analysis of prediction errors
+    error_stats = {
+        'Mean': np.mean(prediction_error),
+        'Std': np.std(prediction_error),
+        'Min': np.min(prediction_error),
+        'Max': np.max(prediction_error),
+        'Q95': np.percentile(prediction_error, 95),
+        'Q99': np.percentile(prediction_error, 99)
+    }
+    
+    print(f"\nTest Set Performance Metrics:")
+    for metric, value in metrics.items():
+        print(f"  {metric:4s}: {value:.6f}")
+    
+    print(f"\nPrediction Error Statistics:")
+    for stat, value in error_stats.items():
+        print(f"  {stat:4s}: {value:.6f}")
+
+    # Visualization
+    print("\n[6/6] Generating comprehensive visualizations...")
+    plot_results(train_losses, val_losses, y_test_orig, test_pred_orig, prediction_error)
+    
+    print("\n=== Analysis Complete ===")
+    print("Key Insights:")
+    print(f"• Model achieved {metrics['RMSE']:.6f} RMSE on test data")
+    print(f"• Average prediction error: {error_stats['Mean']:.6f}")
+    print(f"• 95th percentile error: {error_stats['Q95']:.6f}")
+    print("\nFatigue Detection:")
+    print("• Monitor prediction error trends for anomaly detection")
+    print("• Sustained increases in error may indicate structural degradation")
+    print("• Consider setting threshold at 2-3 standard deviations above training error")
+
+
+if __name__ == "__main__":
+    main()
