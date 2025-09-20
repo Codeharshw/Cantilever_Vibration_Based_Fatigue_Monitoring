@@ -6,8 +6,7 @@ This script implements a multivariate GRU neural network for predicting vibratio
 patterns in cantilever rods using 3D accelerometer data (ax, ay, az). The model
 is designed to detect structural fatigue through prediction error analysis.
 
-Author: Your Name
-Date: 2024
+Author: Codeharshw
 License: MIT
 """
 
