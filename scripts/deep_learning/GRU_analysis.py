@@ -1,36 +1,33 @@
+#!/usr/bin/env python3
 """
-GRU-based Vibration Analysis for Cantilever Rod Fatigue Detection
+GRU Multivariate Vibration Analysis for Cantilever Rod Experiment
 
-This module implements a Gated Recurrent Unit (GRU) neural network for analyzing
-vibration data from MPU9250 sensor to detect structural fatigue in cantilever rods.
-The model is trained on healthy vibration patterns and uses prediction error as
-a fatigue indicator.
+This script implements a multivariate GRU neural network for predicting vibration
+patterns in cantilever rods using 3D accelerometer data (ax, ay, az). The model
+is designed to detect structural fatigue through prediction error analysis.
 
-Based on concepts from "Time Series Forecasting using Deep Learning" by Ivan Gridin.
+Author: Codeharshw
+License: MIT
 """
 
+# --- Part 1: Imports ---
 import copy
 import sys
+import os
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch import optim
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-
+# --- Part 2: The GRU Model Definition (MODIFIED for Multivariate Input) ---
 class GRU(nn.Module):
-    """
-    GRU-based time series prediction model.
-    
-    Args:
-        hidden_size (int): Size of GRU hidden state
-        in_size (int): Input feature dimension (default: 1)
-        out_size (int): Output dimension (default: 1)
-    """
-    
-    def __init__(self, hidden_size, in_size=1, out_size=1):
+    def __init__(self, hidden_size, in_size=3, out_size=1):
         super(GRU, self).__init__()
         self.gru = nn.GRU(
             input_size=in_size,
@@ -40,195 +37,212 @@ class GRU(nn.Module):
         self.fc = nn.Linear(hidden_size, out_size)
 
     def forward(self, x, h=None):
-        """
-        Forward pass through the network.
-        
-        Args:
-            x (torch.Tensor): Input sequence
-            h (torch.Tensor, optional): Initial hidden state
-            
-        Returns:
-            tuple: (prediction, final_hidden_state)
-        """
         out, h_out = self.gru(x, h)
         last_hidden_state = out[:, -1, :]
         prediction = self.fc(last_hidden_state)
         return prediction, h_out
 
-
-def sliding_window(data, window_size):
+# --- Part 3: Data Preparation Helper Function (MODIFIED for Multivariate Input) ---
+def sliding_window_multivariate(data, window_size):
     """
-    Create input-output pairs using sliding window approach.
+    Creates input-output pairs from a multivariate time series dataset.
+    The input (X) will be a window of [ax, ay, az] values.
+    The output (y) will be the single next 'az' value, which captures the primary vibration.
+    """
+    if window_size >= len(data):
+        raise ValueError(f"Window size ({window_size}) must be less than data length ({len(data)})")
     
-    Args:
-        data (np.array): Time series data
-        window_size (int): Length of input sequence
-        
-    Returns:
-        tuple: (X, y) where X is input sequences and y is target values
-    """
     X, y = [], []
     for i in range(len(data) - window_size):
-        X.append(data[i:i + window_size])
-        y.append(data[i + window_size])
+        feature = data[i:i + window_size]
+        # The target is the 'az' value (column 2) of the step after the window
+        target = data[i + window_size, 2]
+        X.append(feature)
+        y.append(target)
     return np.array(X), np.array(y)
 
+# --- Part 4: Main Script Execution ---
+if __name__ == "__main__":
+    # --- Parse Command-Line Arguments ---
+    parser = argparse.ArgumentParser(description="GRU Multivariate Vibration Analysis")
+    parser.add_argument('--window_size', type=int, default=64, help="Size of the sliding window")
+    parser.add_argument('--gru_hidden_size', type=int, default=32, help="Hidden size of GRU")
+    parser.add_argument('--learning_rate', type=float, default=0.001, help="Learning rate for optimizer")
+    parser.add_argument('--training_epochs', type=int, default=50, help="Number of training epochs")
+    parser.add_argument('--batch_size', type=int, default=32, help="Batch size for training")
+    parser.add_argument('--patience', type=int, default=10, help="Patience for early stopping")
+    parser.add_argument('--save_plots', action='store_true', help="Save plots to files instead of showing")
+    args = parser.parse_args()
 
-def main():
-    """Main execution function for vibration analysis."""
-    
-    # Configuration parameters
-    WINDOW_SIZE = 64
-    HIDDEN_SIZE = 32
-    LEARNING_RATE = 0.001
-    EPOCHS = 50
-    TRAIN_RATIO = 0.70
-    VAL_RATIO = 0.15
+    window_size = args.window_size
+    gru_hidden_size = args.gru_hidden_size
+    learning_rate = args.learning_rate
+    training_epochs = args.training_epochs
+    batch_size = args.batch_size
+    patience = args.patience
+    save_plots = args.save_plots
 
-    print("=== GRU Vibration Analysis for Fatigue Detection ===\n")
+    print("--- Starting GRU MULTIVARIATE Vibration Analysis ---")
 
-    # Data loading and preprocessing
-    print("[1/6] Loading and preprocessing data...")
-    try:
-        df = pd.read_csv('calibrated_mpu9250_data.csv')
-        time_series_data = df['ax'].values.reshape(-1, 1)
-        print(f"Loaded {len(time_series_data)} data points")
-    except FileNotFoundError:
-        print("Error: 'calibrated_mpu9250_data.csv' not found in current directory")
+    # --- A. Load and Prepare the Dataset ---
+    print(f"\n[1/6] Loading multivariate data...")
+    csv_file = 'calibrated_mpu9520_data.csv' # Assuming you might have a typo, checking for 9250 as well
+    if not os.path.exists(csv_file):
+        csv_file = 'calibrated_mpu9250_data.csv'
+
+    if not os.path.exists(csv_file):
+        print(f"Warning: CSV file not found. Generating synthetic data for testing...")
+        # Create synthetic data if file is missing
+        t = np.linspace(0, 50, 5000)
+        df = pd.DataFrame({
+            'ax': 0.1 * np.sin(t * 2),
+            'ay': 0.1 * np.cos(t * 2),
+            'az': 2.0 * np.sin(t * 31) + 0.2 * np.random.randn(5000)
+        })
+    else:
+        df = pd.read_csv(csv_file)
+
+    # Validate columns
+    features_to_use = ['ax', 'ay', 'az']
+    if not all(col in df.columns for col in features_to_use):
+        print(f"Error: CSV file must contain columns: {features_to_use}")
         sys.exit(1)
 
-    # Data normalization and windowing
-    scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(time_series_data)
-    X, y = sliding_window(scaled_data, WINDOW_SIZE)
+    time_series_data = df[features_to_use].values
     
-    # Data splitting
-    train_size = int(len(X) * TRAIN_RATIO)
-    val_size = int(len(X) * VAL_RATIO)
+    # --- SCALING LOGIC FIX ---
+    # 1. Scale all features together for the input data (X)
+    feature_scaler = MinMaxScaler()
+    scaled_features = feature_scaler.fit_transform(time_series_data)
+    
+    # 2. Create a separate scaler *only for the target variable 'az'*
+    # This scaler is used for denormalization later.
+    az_scaler = MinMaxScaler()
+    az_scaler.fit(time_series_data[:, 2].reshape(-1, 1))
+
+    # 3. Create windows. 'y' will be automatically scaled because it comes from 'scaled_features'.
+    X, y = sliding_window_multivariate(scaled_features, window_size)
+    print(f"Data prepared with {len(X)} samples.")
+    
+    # 4. Reshape y for PyTorch. No extra scaling needed here. THIS IS THE FIX.
+    y = y.reshape(-1, 1)
+
+    # Split data
+    train_size = int(len(X) * 0.70)
+    val_size = int(len(X) * 0.15)
     
     X_train, y_train = X[:train_size], y[:train_size]
     X_val, y_val = X[train_size:train_size + val_size], y[train_size:train_size + val_size]
     X_test, y_test = X[train_size + val_size:], y[train_size + val_size:]
 
     # Convert to PyTorch tensors
-    tensors = {}
-    for name, data in [('X_train', X_train), ('y_train', y_train), 
-                      ('X_val', X_val), ('y_val', y_val),
-                      ('X_test', X_test), ('y_test', y_test)]:
-        tensors[name] = torch.tensor(data, dtype=torch.float32)
+    X_train = torch.tensor(X_train, dtype=torch.float32)
+    y_train = torch.tensor(y_train, dtype=torch.float32)
+    X_val = torch.tensor(X_val, dtype=torch.float32)
+    y_val = torch.tensor(y_val, dtype=torch.float32)
+    X_test = torch.tensor(X_test, dtype=torch.float32)
+    y_test = torch.tensor(y_test, dtype=torch.float32)
     
-    print(f"Data split: Train={len(X_train)}, Val={len(X_val)}, Test={len(X_test)}")
+    # Create DataLoader for batch processing
+    train_dataset = TensorDataset(X_train, y_train)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_dataset = TensorDataset(X_val, y_val)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size)
 
-    # Model initialization
-    print(f"\n[2/6] Initializing GRU model (hidden_size={HIDDEN_SIZE})...")
-    model = GRU(hidden_size=HIDDEN_SIZE)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    # --- B. Initialize Model, Optimizer, and Loss Function ---
+    print(f"\n[2/6] Initializing Multivariate GRU model...")
+    model = GRU(hidden_size=gru_hidden_size, in_size=len(features_to_use), out_size=1)
+    loss_function = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Training loop
-    print(f"\n[3/6] Training model for {EPOCHS} epochs...")
+    # --- C. Train the Model ---
+    print(f"\n[3/6] Starting training...")
     best_model_state = None
     min_val_loss = float('inf')
-    train_losses, val_losses = [], []
-
-    model.train()
-    for epoch in range(EPOCHS):
-        # Training phase
-        optimizer.zero_grad()
-        train_pred, _ = model(tensors['X_train'])
-        train_loss = criterion(train_pred, tensors['y_train'])
-        train_loss.backward()
-        optimizer.step()
-        
-        # Validation phase
-        model.eval()
-        with torch.no_grad():
-            val_pred, _ = model(tensors['X_val'])
-            val_loss = criterion(val_pred, tensors['y_val'])
+    patience_counter = 0
+    
+    for epoch in range(training_epochs):
         model.train()
+        train_loss = 0.0
+        for X_batch, y_batch in train_loader:
+            optimizer.zero_grad()
+            predictions, _ = model(X_batch)
+            loss = loss_function(predictions, y_batch)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * X_batch.size(0)
         
-        train_losses.append(train_loss.item())
-        val_losses.append(val_loss.item())
+        train_loss /= len(train_loader.dataset)
+        
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for X_batch, y_batch in val_loader:
+                val_predictions, _ = model(X_batch)
+                loss = loss_function(val_predictions, y_batch)
+                val_loss += loss.item() * X_batch.size(0)
+        
+        val_loss /= len(val_loader.dataset)
 
-        # Save best model
-        if val_loss.item() < min_val_loss:
-            min_val_loss = val_loss.item()
+        if val_loss < min_val_loss:
+            min_val_loss = val_loss
             best_model_state = copy.deepcopy(model.state_dict())
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"Early stopping at epoch {epoch+1}")
+                break
 
         if (epoch + 1) % 10 == 0:
-            print(f"Epoch {epoch+1:2d}/{EPOCHS}: Train Loss={train_loss.item():.4f}, "
-                  f"Val Loss={val_loss.item():.4f}")
+            print(f"Epoch [{epoch+1}/{training_epochs}], Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}")
 
-    # Model evaluation
-    print("\n[4/6] Evaluating best model on test set...")
-    best_model = GRU(hidden_size=HIDDEN_SIZE)
+    # --- D. Evaluate the Best Model ---
+    print("\n[4/6] Evaluating model on the test set...")
+    best_model = GRU(hidden_size=gru_hidden_size, in_size=len(features_to_use), out_size=1)
     best_model.load_state_dict(best_model_state)
     best_model.eval()
 
     with torch.no_grad():
-        test_predictions, _ = best_model(tensors['X_test'])
+        test_predictions, _ = best_model(X_test)
 
-    # Denormalize predictions
-    y_test_orig = scaler.inverse_transform(tensors['y_test'].numpy())
-    test_pred_orig = scaler.inverse_transform(test_predictions.numpy())
-    
-    # Calculate prediction error (fatigue indicator)
-    print("\n[5/6] Computing prediction error for fatigue analysis...")
-    prediction_error = np.abs(y_test_orig - test_pred_orig)
-    
-    # Performance metrics
-    mse = np.mean((y_test_orig - test_pred_orig) ** 2)
-    rmse = np.sqrt(mse)
-    mae = np.mean(prediction_error)
-    
-    print(f"Test Set Performance:")
-    print(f"  MSE:  {mse:.6f}")
-    print(f"  RMSE: {rmse:.6f}")
-    print(f"  MAE:  {mae:.6f}")
+    # --- E. Calculate Prediction Error for Fatigue Detection ---
+    print("\n[5/6] Calculating prediction error for fatigue analysis...")
+    # Denormalize using the dedicated az_scaler for simplicity and accuracy
+    y_test_unscaled = az_scaler.inverse_transform(y_test.numpy())
+    test_predictions_unscaled = az_scaler.inverse_transform(test_predictions.numpy())
 
-    # Visualization
-    print("\n[6/6] Generating visualizations...")
-    
-    # Training history
-    plt.figure(figsize=(12, 4))
-    
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Training Loss', alpha=0.8)
-    plt.plot(val_losses, label='Validation Loss', alpha=0.8)
-    plt.title('Training History')
-    plt.xlabel('Epoch')
-    plt.ylabel('MSE Loss')
-    plt.yscale('log')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Prediction comparison
-    plt.subplot(1, 2, 2)
-    indices = range(min(1000, len(y_test_orig)))  # Limit for readability
-    plt.plot(indices, y_test_orig[indices], label='Actual', alpha=0.7)
-    plt.plot(indices, test_pred_orig[indices], label='Predicted', alpha=0.7)
-    plt.title('Prediction vs Actual (Sample)')
+    prediction_error = np.abs(y_test_unscaled - test_predictions_unscaled).squeeze()
+
+    # Calculate metrics
+    mae = mean_absolute_error(y_test_unscaled, test_predictions_unscaled)
+    rmse = np.sqrt(mean_squared_error(y_test_unscaled, test_predictions_unscaled))
+    print(f"Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
+
+    # --- F. Plot the Results ---
+    print("\n[6/6] Plotting results...")
+    plt.figure(figsize=(14, 7))
+    plt.plot(y_test_unscaled, label='Actual Vibration (az)', color='blue', alpha=0.7)
+    plt.plot(test_predictions_unscaled, label='Predicted Vibration (az)', color='red', linestyle='--')
+    plt.title('Vibration Prediction on Test Data (Multivariate GRU)')
     plt.xlabel('Time Step')
-    plt.ylabel('Acceleration')
+    plt.ylabel('Acceleration (Original Scale)')
     plt.legend()
-    plt.grid(True, alpha=0.3)
+    plt.grid(True)
+    if save_plots:
+        plt.savefig('vibration_prediction.png')
+    else:
+        plt.show()
     
-    plt.tight_layout()
-    plt.show()
-
-    # Fatigue indicator plot
-    plt.figure(figsize=(12, 6))
-    plt.plot(prediction_error, color='red', alpha=0.7)
-    plt.title('Prediction Error - Fatigue Indicator')
-    plt.xlabel('Time Step (Test Set)')
+    plt.figure(figsize=(14, 7))
+    plt.plot(prediction_error, label='Prediction Error (Absolute)', color='green')
+    plt.title('Prediction Error Over Time (Fatigue Indicator)')
+    plt.xlabel('Time Step (in the test set)')
     plt.ylabel('Absolute Prediction Error')
-    plt.grid(True, alpha=0.3)
-    plt.show()
-    
-    print("\n=== Analysis Complete ===")
-    print(f"Monitor prediction error trends for fatigue detection.")
-    print(f"Increasing error patterns may indicate structural degradation.")
+    plt.legend()
+    plt.grid(True)
+    if save_plots:
+        plt.savefig('prediction_error.png')
+    else:
+        plt.show()
 
-
-if __name__ == "__main__":
-    main()
