@@ -1,6 +1,15 @@
-# LSTM MULTIVARIATE Vibration Analysis for Cantilever Rod Experiment
-# This script uses ax, ay, and az as inputs to predict the future az.
-# This version is adapted from the robust GRU script, using an LSTM core.
+#!/usr/bin/env python3
+"""
+GRU Multivariate Vibration Analysis for Cantilever Rod Experiment
+
+This script implements a multivariate GRU neural network for predicting vibration
+patterns in cantilever rods using 3D accelerometer data (ax, ay, az). The model
+is designed to detect structural fatigue through prediction error analysis.
+
+Author: Your Name
+Date: 2024
+License: MIT
+"""
 
 # --- Part 1: Imports ---
 import copy
