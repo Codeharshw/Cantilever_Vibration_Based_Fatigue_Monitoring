@@ -9,12 +9,12 @@ is designed to detect structural fatigue through prediction error analysis.
 Author: Codeharshw
 License: MIT
 """
-
 # --- Part 1: Imports ---
 import copy
 import sys
 import os
 import argparse
+import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -63,6 +63,12 @@ def sliding_window_multivariate(data, window_size):
 
 # --- Part 4: Main Script Execution ---
 if __name__ == "__main__":
+    # --- Set seed for reproducibility ---
+    seed = 42
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    
     # --- Parse Command-Line Arguments ---
     parser = argparse.ArgumentParser(description="GRU Multivariate Vibration Analysis")
     parser.add_argument('--window_size', type=int, default=64, help="Size of the sliding window")
@@ -86,12 +92,10 @@ if __name__ == "__main__":
 
     # --- A. Load and Prepare the Dataset ---
     print(f"\n[1/6] Loading multivariate data...")
-    csv_file = 'calibrated_mpu9520_data.csv' # Assuming you might have a typo, checking for 9250 as well
-    if not os.path.exists(csv_file):
-        csv_file = 'calibrated_mpu9250_data.csv'
+    csv_file = 'calibrated_mpu9250_data.csv'
 
     if not os.path.exists(csv_file):
-        print(f"Warning: CSV file not found. Generating synthetic data for testing...")
+        print(f"Warning: CSV file '{csv_file}' not found. Generating synthetic data for testing...")
         # Create synthetic data if file is missing
         t = np.linspace(0, 50, 5000)
         df = pd.DataFrame({
@@ -110,21 +114,19 @@ if __name__ == "__main__":
 
     time_series_data = df[features_to_use].values
     
-    # --- SCALING LOGIC FIX ---
-    # 1. Scale all features together for the input data (X)
+    # Scale all features together for the input data (X)
     feature_scaler = MinMaxScaler()
     scaled_features = feature_scaler.fit_transform(time_series_data)
     
-    # 2. Create a separate scaler *only for the target variable 'az'*
-    # This scaler is used for denormalization later.
+    # Create a separate scaler *only for the target variable 'az'* for denormalization
     az_scaler = MinMaxScaler()
     az_scaler.fit(time_series_data[:, 2].reshape(-1, 1))
 
-    # 3. Create windows. 'y' will be automatically scaled because it comes from 'scaled_features'.
+    # Create windows. 'y' will be automatically scaled because it comes from 'scaled_features'.
     X, y = sliding_window_multivariate(scaled_features, window_size)
     print(f"Data prepared with {len(X)} samples.")
     
-    # 4. Reshape y for PyTorch. No extra scaling needed here. THIS IS THE FIX.
+    # Reshape y for PyTorch.
     y = y.reshape(-1, 1)
 
     # Split data
@@ -208,7 +210,7 @@ if __name__ == "__main__":
 
     # --- E. Calculate Prediction Error for Fatigue Detection ---
     print("\n[5/6] Calculating prediction error for fatigue analysis...")
-    # Denormalize using the dedicated az_scaler for simplicity and accuracy
+    # Denormalize using the dedicated az_scaler
     y_test_unscaled = az_scaler.inverse_transform(y_test.numpy())
     test_predictions_unscaled = az_scaler.inverse_transform(test_predictions.numpy())
 
@@ -230,7 +232,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.grid(True)
     if save_plots:
-        plt.savefig('vibration_prediction.png')
+        plt.savefig('gru_vibration_prediction.png')
     else:
         plt.show()
     
@@ -242,7 +244,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.grid(True)
     if save_plots:
-        plt.savefig('prediction_error.png')
+        plt.savefig('gru_prediction_error.png')
     else:
         plt.show()
 
