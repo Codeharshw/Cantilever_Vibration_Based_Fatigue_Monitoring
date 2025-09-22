@@ -99,12 +99,19 @@ if __name__ == "__main__":
         # Create synthetic data if file is missing
         t = np.linspace(0, 50, 5000)
         df = pd.DataFrame({
+            'time': t,
             'ax': 0.1 * np.sin(t * 2),
-            'ay': 0.1 * np.cos(t * 2),
-            'az': 2.0 * np.sin(t * 31) + 0.2 * np.random.randn(5000)
+            'ay': 2.0 * np.sin(t * 31) + 0.2 * np.random.randn(5000),
+            'az': 0.1 * np.cos(t * 2),
+            'gx': np.zeros(5000), 'gy': np.zeros(5000), 'gz': np.zeros(5000)
         })
     else:
-        df = pd.read_csv(csv_file)
+        # ** FIX STARTS HERE **
+        # 1. Load the CSV telling pandas there is no header row.
+        df = pd.read_csv(csv_file, header=None)
+        # 2. Manually assign the correct column names.
+        df.columns = ['time', 'ax', 'ay', 'az', 'gx', 'gy', 'gz']
+        # ** FIX ENDS HERE **
 
     # Validate columns
     features_to_use = ['ax', 'ay', 'az']
@@ -247,4 +254,3 @@ if __name__ == "__main__":
         plt.savefig('gru_prediction_error.png')
     else:
         plt.show()
-
