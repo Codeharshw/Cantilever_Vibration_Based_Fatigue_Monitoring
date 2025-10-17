@@ -5,15 +5,16 @@ GRU Multivariate Vibration Analysis for Cantilever Rod Experiment
 This script implements a multivariate GRU neural network for predicting vibration
 patterns in cantilever rods using 3D accelerometer data (ax, ay, az). The model
 is designed to detect structural fatigue through prediction error analysis.
+COLAB-FRIENDLY Version
 
 Author: Codeharshw
 License: MIT
 """
+
 # --- Part 1: Imports ---
 import copy
 import sys
 import os
-import argparse
 import random
 import numpy as np
 import pandas as pd
@@ -51,7 +52,7 @@ def sliding_window_multivariate(data, window_size):
     """
     if window_size >= len(data):
         raise ValueError(f"Window size ({window_size}) must be less than data length ({len(data)})")
-    
+
     X, y = [], []
     for i in range(len(data) - window_size):
         feature = data[i:i + window_size]
@@ -68,50 +69,30 @@ if __name__ == "__main__":
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    
-    # --- Parse Command-Line Arguments ---
-    parser = argparse.ArgumentParser(description="GRU Multivariate Vibration Analysis")
-    parser.add_argument('--window_size', type=int, default=64, help="Size of the sliding window")
-    parser.add_argument('--gru_hidden_size', type=int, default=32, help="Hidden size of GRU")
-    parser.add_argument('--learning_rate', type=float, default=0.001, help="Learning rate for optimizer")
-    parser.add_argument('--training_epochs', type=int, default=50, help="Number of training epochs")
-    parser.add_argument('--batch_size', type=int, default=32, help="Batch size for training")
-    parser.add_argument('--patience', type=int, default=10, help="Patience for early stopping")
-    parser.add_argument('--save_plots', action='store_true', help="Save plots to files instead of showing")
-    args = parser.parse_args()
 
-    window_size = args.window_size
-    gru_hidden_size = args.gru_hidden_size
-    learning_rate = args.learning_rate
-    training_epochs = args.training_epochs
-    batch_size = args.batch_size
-    patience = args.patience
-    save_plots = args.save_plots
+    # --- CONFIGURATION BLOCK (Replaces Argparse for Colab) ---
+    # Easily change your experimental parameters here
+    window_size = 64
+    gru_hidden_size = 32
+    learning_rate = 0.001
+    training_epochs = 50
+    batch_size = 32
+    patience = 10  # For early stopping
+    save_plots = False # Set to True to save plots instead of displaying them
 
     print("--- Starting GRU MULTIVARIATE Vibration Analysis ---")
 
     # --- A. Load and Prepare the Dataset ---
     print(f"\n[1/6] Loading multivariate data...")
-    csv_file = 'calibrated_mpu9250_data.csv'
+    csv_file = 'local_vibration_data.csv'
 
     if not os.path.exists(csv_file):
-        print(f"Warning: CSV file '{csv_file}' not found. Generating synthetic data for testing...")
-        # Create synthetic data if file is missing
-        t = np.linspace(0, 50, 5000)
-        df = pd.DataFrame({
-            'time': t,
-            'ax': 0.1 * np.sin(t * 2),
-            'ay': 2.0 * np.sin(t * 31) + 0.2 * np.random.randn(5000),
-            'az': 0.1 * np.cos(t * 2),
-            'gx': np.zeros(5000), 'gy': np.zeros(5000), 'gz': np.zeros(5000)
-        })
+        print(f"Warning: CSV file '{csv_file}' not found")
     else:
-        # ** FIX STARTS HERE **
-        # 1. Load the CSV telling pandas there is no header row.
+        # Load the CSV telling pandas there is no header row.
         df = pd.read_csv(csv_file, header=None)
-        # 2. Manually assign the correct column names.
+        # Manually assign the correct column names.
         df.columns = ['time', 'ax', 'ay', 'az', 'gx', 'gy', 'gz']
-        # ** FIX ENDS HERE **
 
     # Validate columns
     features_to_use = ['ax', 'ay', 'az']
@@ -120,11 +101,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     time_series_data = df[features_to_use].values
-    
+
     # Scale all features together for the input data (X)
     feature_scaler = MinMaxScaler()
     scaled_features = feature_scaler.fit_transform(time_series_data)
-    
+
     # Create a separate scaler *only for the target variable 'az'* for denormalization
     az_scaler = MinMaxScaler()
     az_scaler.fit(time_series_data[:, 2].reshape(-1, 1))
@@ -132,14 +113,14 @@ if __name__ == "__main__":
     # Create windows. 'y' will be automatically scaled because it comes from 'scaled_features'.
     X, y = sliding_window_multivariate(scaled_features, window_size)
     print(f"Data prepared with {len(X)} samples.")
-    
+
     # Reshape y for PyTorch.
     y = y.reshape(-1, 1)
 
     # Split data
     train_size = int(len(X) * 0.70)
     val_size = int(len(X) * 0.15)
-    
+
     X_train, y_train = X[:train_size], y[:train_size]
     X_val, y_val = X[train_size:train_size + val_size], y[train_size:train_size + val_size]
     X_test, y_test = X[train_size + val_size:], y[train_size + val_size:]
@@ -151,7 +132,7 @@ if __name__ == "__main__":
     y_val = torch.tensor(y_val, dtype=torch.float32)
     X_test = torch.tensor(X_test, dtype=torch.float32)
     y_test = torch.tensor(y_test, dtype=torch.float32)
-    
+
     # Create DataLoader for batch processing
     train_dataset = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -169,7 +150,7 @@ if __name__ == "__main__":
     best_model_state = None
     min_val_loss = float('inf')
     patience_counter = 0
-    
+
     for epoch in range(training_epochs):
         model.train()
         train_loss = 0.0
@@ -180,9 +161,9 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * X_batch.size(0)
-        
+
         train_loss /= len(train_loader.dataset)
-        
+
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -190,7 +171,7 @@ if __name__ == "__main__":
                 val_predictions, _ = model(X_batch)
                 loss = loss_function(val_predictions, y_batch)
                 val_loss += loss.item() * X_batch.size(0)
-        
+
         val_loss /= len(val_loader.dataset)
 
         if val_loss < min_val_loss:
@@ -242,7 +223,7 @@ if __name__ == "__main__":
         plt.savefig('gru_vibration_prediction.png')
     else:
         plt.show()
-    
+
     plt.figure(figsize=(14, 7))
     plt.plot(prediction_error, label='Prediction Error (Absolute)', color='green')
     plt.title('Prediction Error Over Time (Fatigue Indicator)')
@@ -254,3 +235,5 @@ if __name__ == "__main__":
         plt.savefig('gru_prediction_error.png')
     else:
         plt.show()
+
+
